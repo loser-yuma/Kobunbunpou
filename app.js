@@ -17,6 +17,7 @@ let attemptId = null;
 let pendingAnswers = [];
 let currentProfile = null;
 let supabaseClient = null;
+let anonymousSessionPromise = null;
 
 const totalQuestions = Object.values(quizzes).reduce((total, questions) => total + questions.length, 0);
 document.querySelector('#total-count').textContent = `${totalQuestions}問`;
@@ -188,9 +189,18 @@ async function loadLeaderboards() {
 
 async function handleSession(session) {
 	const hasSession = Boolean(session?.user);
+	const isAnonymous = Boolean(session?.user?.is_anonymous);
 	document.querySelector('#auth-forms').hidden = hasSession;
 	document.querySelector('#account-session').hidden = !hasSession;
 	document.querySelector('#logout-button').hidden = !hasSession;
+	if (isAnonymous) {
+		currentProfile = null;
+		document.querySelector('#auth-forms').hidden = false;
+		document.querySelector('#account-session').hidden = true;
+		renderStats();
+		setAuthMessage('ログインなしでクイズを利用できます。ランキングに参加する場合は登録またはログインしてください。');
+		return;
+	}
 	if (!hasSession) {
 		currentProfile = null;
 		document.querySelector('#account-email').textContent = '';
@@ -220,6 +230,7 @@ async function handleSession(session) {
 				return;
 			}
 		}
+
 		setAuthMessage(currentProfile.nickname
 			? 'ログイン中です。クイズを完了すると記録がランキングに反映されます。'
 			: 'ランキング参加にはニックネームを登録してください。');
@@ -227,6 +238,23 @@ async function handleSession(session) {
 		setAuthMessage(`アカウント情報を取得できませんでした: ${error.message}`, true);
 		setRankingMessage('ランキングを読み込めませんでした');
 	}
+}
+
+async function ensureQuizSession() {
+	if (!supabaseClient) throw new Error('Supabaseの設定が必要です。');
+	const { data, error } = await supabaseClient.auth.getSession();
+	if (error) throw error;
+	if (data.session?.user) return;
+	if (!anonymousSessionPromise) {
+		anonymousSessionPromise = supabaseClient.auth.signInAnonymously()
+			.then(({ data: signInData, error: signInError }) => {
+				if (signInError) throw signInError;
+				if (!signInData.session) throw new Error('匿名セッションを開始できませんでした。');
+				return signInData.session;
+			})
+			.finally(() => { anonymousSessionPromise = null; });
+	}
+	await anonymousSessionPromise;
 }
 
 function shuffle(items) {
@@ -369,14 +397,15 @@ async function startOver() {
 
 async function showQuiz(selectedKind) {
 	if (!validCategories.includes(selectedKind)) return;
-	if (!supabaseClient || !currentProfile) {
-		setAuthMessage('ランキングに参加してクイズを始めるには、Supabaseの設定とログインが必要です。', true);
-		document.querySelector('#account-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+	if (!supabaseClient) {
+		setAuthMessage('クイズを始めるには、Supabaseの設定が必要です。', true);
 		return;
 	}
-	if (!currentProfile.nickname) {
-		setAuthMessage('クイズを始める前に、ランキング用ニックネームを登録してください。', true);
-		document.querySelector('#nickname-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+	try {
+		await ensureQuizSession();
+	} catch (error) {
+		setAuthMessage(`クイズを開始できませんでした。ログインなしの利用が有効になっていない可能性があります: ${error.message}`, true);
+		document.querySelector('#account-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
 		return;
 	}
 	kind = selectedKind;
