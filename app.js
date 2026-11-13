@@ -270,10 +270,24 @@ async function submitAnswers() {
 	const selectedIndices = pendingAnswers.map(answer => answer.selected_index);
 	panel.innerHTML = '<p class="feedback">回答をまとめて確認しています…</p>';
 	try {
-		const result = await callApi('answer_batch', {
-			attempt_id: attemptId,
-			selected_indices: selectedIndices
-		});
+		let result;
+		try {
+			result = await callApi('answer_batch', {
+				attempt_id: attemptId,
+				selected_indices: selectedIndices
+			});
+		} catch (error) {
+			if (error.message !== '指定された操作に対応していません。') throw error;
+			const answers = [];
+			for (let position = 0; position < selectedIndices.length; position++) {
+				answers.push(await callApi('answer', {
+					attempt_id: attemptId,
+					expected_position: position,
+					selected_index: selectedIndices[position]
+				}));
+			}
+			result = { answers, final: answers[answers.length - 1] };
+		}
 		const answers = Array.isArray(result.answers) ? result.answers : [];
 		answers.forEach(answer => {
 			if (answer.correct) score++;
