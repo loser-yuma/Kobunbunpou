@@ -6,6 +6,7 @@ const courseCards = [...document.querySelectorAll('.course-card')];
 const QUESTION_COUNT = 10;
 const STATS_KEY = 'kobun-quiz-stats';
 const DAILY_KEY = 'kobunbunpou-daily-counts';
+const GUEST_NICKNAME_PREFIX = 'guest-';
 const authMessage = document.querySelector('#auth-message');
 const validCategories = ['particles', 'auxiliaries'];
 let kind = 'particles';
@@ -129,13 +130,16 @@ function setRankingMessage(message) {
 function renderRanking(listId, entries, scoreField, suffix) {
 	const list = document.querySelector(`#${listId}`);
 	list.replaceChildren();
-	if (!entries.length) {
+	const visibleEntries = entries.filter(entry =>
+		typeof entry.nickname === 'string' && !entry.nickname.startsWith(GUEST_NICKNAME_PREFIX)
+	);
+	if (!visibleEntries.length) {
 		const item = document.createElement('li');
 		item.textContent = 'まだ記録がありません';
 		list.append(item);
 		return;
 	}
-	entries.forEach(entry => {
+	visibleEntries.forEach(entry => {
 		const item = document.createElement('li');
 		const name = document.createElement('span');
 		name.textContent = entry.nickname;
@@ -199,6 +203,7 @@ async function handleSession(session) {
 		document.querySelector('#account-session').hidden = true;
 		renderStats();
 		setAuthMessage('ログインなしでクイズを利用できます。ランキングに参加する場合は登録またはログインしてください。');
+		setRankingMessage('ゲストモードはランキング対象外です');
 		return;
 	}
 	if (!hasSession) {
@@ -263,7 +268,7 @@ async function ensureQuizNickname() {
 	if (error) throw error;
 	const userId = data.session?.user?.id;
 	if (!userId) throw new Error('クイズ用セッションがありません。');
-	const nickname = `guest-${userId.replaceAll('-', '').slice(0, 12)}`;
+	const nickname = `${GUEST_NICKNAME_PREFIX}${userId.replaceAll('-', '').slice(0, 12)}`;
 	await callApi('set_nickname', { nickname });
 	currentProfile = { ...(currentProfile || {}), nickname };
 }
