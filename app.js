@@ -14,6 +14,7 @@ let score = 0;
 let answered = false;
 let sessionQuestions = [];
 let attemptId = null;
+let pendingAnswers = [];
 let currentProfile = null;
 let supabaseClient = null;
 
@@ -76,7 +77,7 @@ function loadDailyCounts() {
 	return {};
 }
 
-function recordAnswer() {
+function recordAnswer({ sync = true } = {}) {
 	const days = loadDailyCounts();
 	const today = jstDay(Date.now());
 	days[today] = (Number.isInteger(days[today]) && days[today] >= 0 ? days[today] : 0) + 1;
@@ -87,7 +88,7 @@ function recordAnswer() {
 	} catch (error) {
 		console.error('日別の回答数を保存できませんでした。', error);
 	}
-	if (window.PortalClient) window.PortalClient.kick();
+	if (sync && window.PortalClient) window.PortalClient.kick();
 }
 
 function renderStats() {
@@ -264,61 +265,73 @@ function render() {
 		<p class="feedback" id="feedback"></p><div class="actions"><button class="primary" id="next" disabled>${index === QUESTION_COUNT - 1 ? '結果を見る' : '次の問題へ'}</button></div>`;
 	panel.querySelectorAll('.choice').forEach(button => button.addEventListener('click', () => selectAnswer(Number(button.dataset.choice))));
 	document.querySelector('#next').addEventListener('click', () => {
+		if (index === QUESTION_COUNT - 1) {
+			submitAnswers();
+			return;
+		}
 		index++;
 		answered = false;
 		render();
 	});
 }
 
-async function selectAnswer(selected) {
-	if (answered) return;
-	answered = true;
-	const question = sessionQuestions[index];
-	const buttons = panel.querySelectorAll('.choice');
-	buttons.forEach(button => { button.disabled = true; });
-	const feedback = document.querySelector('#feedback');
-	feedback.textContent = '回答を確認しています…';
+async function submitAnswers() {
+	const selectedIndices = pendingAnswers.map(answer => answer.selected_index);
+	panel.innerHTML = '<p class="feedback">回答をまとめて確認しています…</p>';
 	try {
-		const result = await callApi('answer', {
+		const result = await callApi('answer_batch', {
 			attempt_id: attemptId,
-			expected_position: index,
-			selected_index: question.choiceOrder[selected]
+			selected_indices: selectedIndices
 		});
-		score = result.score;
-		recordAnswer();
-		buttons.forEach((button, displayedIndex) => {
-			const originalIndex = question.choiceOrder[displayedIndex];
-			if (originalIndex === result.correct_index) button.classList.add('correct');
-			else if (displayedIndex === selected) button.classList.add('wrong');
+		const answers = Array.isArray(result.answers) ? result.answers : [];
+		answers.forEach(answer => {
+			if (answer.correct) score++;
+			recordAnswer({ sync: false });
 		});
-		feedback.innerHTML = `<strong>${result.correct ? '正解！' : `不正解。正解は「${question.choices[question.choiceOrder.indexOf(result.correct_index)]}」です。`}</strong> ${question.note}`;
-		document.querySelector('#next').disabled = false;
-		panel.querySelector('.progress-row span:last-child').textContent = `今回の正解 ${score} 問`;
-		currentProfile = {
-			...currentProfile,
-			cumulative_correct: result.cumulative_correct,
-			current_streak: result.current_streak
-		};
-		renderStats();
-		if (result.is_complete) {
+		if (window.PortalClient) window.PortalClient.kick();
+		score = result.final?.score ?? score;
+		if (result.final) {
+			currentProfile = {
+				...currentProfile,
+				cumulative_correct: result.final.cumulative_correct,
+				current_streak: result.final.current_streak
+			};
+		}
+		if (result.final?.is_complete) {
 			try {
 				await loadDashboard();
 			} catch (error) {
 				setAuthMessage(`ランキングの更新を取得できませんでした: ${error.message}`, true);
 			}
 		}
+		index = QUESTION_COUNT;
+		render();
 	} catch (error) {
-		answered = false;
-		buttons.forEach(button => { button.disabled = false; });
-		feedback.textContent = `回答を送信できませんでした: ${error.message} もう一度お試しください。`;
-		feedback.classList.add('error');
+		panel.innerHTML = '';
+		const message = document.createElement('p');
+		message.className = 'feedback error';
+		message.textContent = `回答を送信できませんでした: ${error.message} もう一度お試しください。`;
+		panel.append(message);
 	}
+}
+
+function selectAnswer(selected) {
+	if (answered) return;
+	answered = true;
+	const question = sessionQuestions[index];
+	const buttons = panel.querySelectorAll('.choice');
+	buttons.forEach(button => { button.disabled = true; });
+	const feedback = document.querySelector('#feedback');
+	pendingAnswers[index] = { selected_index: question.choiceOrder[selected] };
+	feedback.textContent = '回答を受け付けました。最後にまとめて判定します。';
+	document.querySelector('#next').disabled = false;
 }
 
 async function startOver() {
 	index = 0;
 	score = 0;
 	answered = false;
+	pendingAnswers = [];
 	document.querySelector('#restart')?.setAttribute('disabled', '');
 	panel.innerHTML = '<p class="feedback">問題を準備しています…</p>';
 	try {
