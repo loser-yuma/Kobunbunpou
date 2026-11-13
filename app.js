@@ -326,9 +326,7 @@ function selectAnswer(selected) {
 	const question = sessionQuestions[index];
 	const buttons = panel.querySelectorAll('.choice');
 	buttons.forEach(button => { button.disabled = true; });
-	const feedback = document.querySelector('#feedback');
 	pendingAnswers[index] = { selected_index: question.choiceOrder[selected] };
-	feedback.textContent = '回答を受け付けました。';
 	setTimeout(() => {
 		if (index === QUESTION_COUNT - 1) {
 			submitAnswers();
