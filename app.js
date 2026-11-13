@@ -257,6 +257,17 @@ async function ensureQuizSession() {
 	await anonymousSessionPromise;
 }
 
+async function ensureQuizNickname() {
+	if (currentProfile?.nickname) return;
+	const { data, error } = await supabaseClient.auth.getSession();
+	if (error) throw error;
+	const userId = data.session?.user?.id;
+	if (!userId) throw new Error('クイズ用セッションがありません。');
+	const nickname = `guest-${userId.replaceAll('-', '').slice(0, 12)}`;
+	await callApi('set_nickname', { nickname });
+	currentProfile = { ...(currentProfile || {}), nickname };
+}
+
 function shuffle(items) {
 	const shuffled = [...items];
 	for (let i = shuffled.length - 1; i > 0; i--) {
@@ -374,7 +385,14 @@ async function startOver() {
 	document.querySelector('#restart')?.setAttribute('disabled', '');
 	panel.innerHTML = '<p class="feedback">問題を準備しています…</p>';
 	try {
-		const attempt = await callApi('start', { category: kind });
+		let attempt;
+		try {
+			attempt = await callApi('start', { category: kind });
+		} catch (error) {
+			if (!error.message.includes('ニックネーム')) throw error;
+			await ensureQuizNickname();
+			attempt = await callApi('start', { category: kind });
+		}
 		if (!Array.isArray(attempt.question_indices) || attempt.question_indices.length !== QUESTION_COUNT ||
 			attempt.question_indices.some(questionIndex =>
 				!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex >= quizzes[kind].length
