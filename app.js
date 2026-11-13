@@ -203,7 +203,11 @@ async function handleSession(session) {
 		document.querySelector('#account-session').hidden = true;
 		renderStats();
 		setAuthMessage('ログインなしでクイズを利用できます。ランキングに参加する場合は登録またはログインしてください。');
-		setRankingMessage('ゲストモードはランキング対象外です');
+		try {
+			await loadLeaderboards();
+		} catch (error) {
+			setRankingMessage(`ランキングを読み込めませんでした: ${error.message}`);
+		}
 		return;
 	}
 	if (!hasSession) {
