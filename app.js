@@ -262,17 +262,8 @@ function render() {
 		<div class="track"><div class="bar" style="width:${(index / QUESTION_COUNT) * 100}%"></div></div>
 		<h2 class="question">${question.ask}</h2><p class="sentence">「${highlighted}」</p>
 		<div class="choices">${question.choices.map((choice, i) => `<button class="choice" data-choice="${i}">${String.fromCharCode(65 + i)}. ${choice}</button>`).join('')}</div>
-		<p class="feedback" id="feedback"></p><div class="actions"><button class="primary" id="next" disabled>${index === QUESTION_COUNT - 1 ? '結果を見る' : '次の問題へ'}</button></div>`;
+		<p class="feedback" id="feedback"></p>`;
 	panel.querySelectorAll('.choice').forEach(button => button.addEventListener('click', () => selectAnswer(Number(button.dataset.choice))));
-	document.querySelector('#next').addEventListener('click', () => {
-		if (index === QUESTION_COUNT - 1) {
-			submitAnswers();
-			return;
-		}
-		index++;
-		answered = false;
-		render();
-	});
 }
 
 async function submitAnswers() {
@@ -324,7 +315,15 @@ function selectAnswer(selected) {
 	const feedback = document.querySelector('#feedback');
 	pendingAnswers[index] = { selected_index: question.choiceOrder[selected] };
 	feedback.textContent = '回答を受け付けました。';
-	document.querySelector('#next').disabled = false;
+	setTimeout(() => {
+		if (index === QUESTION_COUNT - 1) {
+			submitAnswers();
+			return;
+		}
+		index++;
+		answered = false;
+		render();
+	}, 250);
 }
 
 async function startOver() {
