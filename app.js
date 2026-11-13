@@ -323,7 +323,7 @@ function selectAnswer(selected) {
 	buttons.forEach(button => { button.disabled = true; });
 	const feedback = document.querySelector('#feedback');
 	pendingAnswers[index] = { selected_index: question.choiceOrder[selected] };
-	feedback.textContent = '回答を受け付けました。最後にまとめて判定します。';
+	feedback.textContent = '回答を受け付けました。';
 	document.querySelector('#next').disabled = false;
 }
 
