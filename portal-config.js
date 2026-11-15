@@ -28,7 +28,7 @@ window.PORTAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_lfvqV1MdT5eioPyLOnM36Q_
       nav.setAttribute('aria-label', 'アプリの切り替え');
       nav.innerHTML = '<div class="app-nav-inner">'
         + '<span class="app-nav-title">Dr.Yの研究室</span>'
-        + '<div class="app-nav-links"><a href="https://loser-yuma.github.io/DeleteTaletoNose/">消去しりとり</a>'
+        + '<div class="app-nav-links"><a href="https://loser-yuma.github.io/DeleteTailtoNose/">消去しりとり</a>'
         + '<a href="https://loser-yuma.github.io/Kobunbunpou/" aria-current="page">古典文法</a></div>'
         + '</div>';
       document.body.insertBefore(nav, document.body.firstChild);
